@@ -21,6 +21,8 @@ type Config struct {
 	ThingspeakAPIKey           string
 	ThingspeakTemperatureField string
 	ThingspeakHumidityField    string
+	LibratoAPIKey              string
+	LibratoUsername            string
 }
 
 // config holds the current user-configurable options.
@@ -44,6 +46,8 @@ func ReadConfig() Config {
 	config.ThingspeakAPIKey = viper.GetString("thingspeak.api_key")
 	config.ThingspeakTemperatureField = viper.GetString("thingspeak.temperature_field")
 	config.ThingspeakHumidityField = viper.GetString("thingspeak.humidity_field")
+	config.LibratoAPIKey = viper.GetString("librato.api_key")
+	config.LibratoUsername = viper.GetString("librato.username")
 	return config
 }
 
@@ -69,15 +73,15 @@ func ProcessLine(data []byte) {
 		// @      Device serial number
 		// T|C16  Current temperature, in 1/16th of a Celcius
 		// H|%    Current humidty, as %
-		// +
-		// v|%
-		// tT|C
+		// +      Frame Sequence Number
+		// v|%    Valve-open percentage
+		// tT|C   Target room temperature (C)
 		// cV
 		// 0
 		// vac
 		// tS|C
 		// gE
-		// L
+		// L      Light Level (0-255)
 		var dat map[string]interface{}
 
 		if err := json.Unmarshal(data, &dat); err != nil {
@@ -94,31 +98,46 @@ func ProcessLine(data []byte) {
 			log.Print("Got Serial " + serialnum)
 		}
 
+		if rawTemp, ok := dat["tT|C"]; ok {
+			targettemp := rawTemp.(float64)
+			log.Print("Got Target Temperature " + strconv.FormatFloat(float64(targettemp), 'f', 2, 32))
+			SendDataToLibrato("targetTemp", serialnum, targettemp)
+		}
+
+		if rawLight, ok := dat["L"]; ok {
+			light := rawLight.(float64)
+			log.Print("Got Light Level " + strconv.FormatFloat(float64(light), 'f', 2, 32))
+			SendDataToLibrato("light", serialnum, light)
+		}
+
 		if rawTemp, ok := dat["T|C16"]; ok {
 			temp = rawTemp.(float64) / 16
 			log.Print("Got Temperature " + strconv.FormatFloat(float64(temp), 'f', 2, 32))
 			SendTempDataToThingSpeak(temp)
+			SendDataToLibrato("temperature", serialnum, temp)
 		}
 
 		if rawHumid, ok := dat["H|%"]; ok {
 			humidity = rawHumid.(float64)
 			log.Print("Got Humidity " + strconv.FormatFloat(float64(humidity), 'f', 2, 32))
 			SendHumidityDataToThingSpeak(humidity)
+			SendDataToLibrato("humidity", serialnum, temp)
 		}
 
 	}
 }
 
 func main() {
+	var config = ReadConfig()
+	log.Printf("Connecting to %s at %d\n", config.SerialPort, config.SerialBaud)
+
 	// SendDataToSparkFun("test", 23, 11.23)
 	// SendDataToThingSpeak("test", 23, 11.23)
+	// SendDataToLibrato("temperature", "test", 23)
 	// log.Fatal("done")
 
 	// ProcessLine([]byte(`{"@":"C1F8BED8A9AAB8C5","+":3,"L":105,"T|C16":290,"H|%":51}`)) // has temp and humid
 	// log.Fatal("done")
-
-	var config = ReadConfig()
-	log.Printf("Connecting to %s at %d\n", config.SerialPort, config.SerialBaud)
 
 	c := &serial.Config{Name: config.SerialPort, Baud: config.SerialBaud}
 	s, err := serial.OpenPort(c)
@@ -139,6 +158,23 @@ func main() {
 		// Process the data line
 		ProcessLine(reply)
 
+	}
+}
+
+// SendDataToLibrato sends the supplied temperature reading to SendTempDataToLibrato
+func SendDataToLibrato(gauge string, sensor string, temp float64) {
+	posturl := "https://metrics-api.librato.com/v1/metrics"
+
+	var jsonStr = []byte(`{"gauges":[{"name":"` + gauge + `","value":"` + strconv.FormatFloat(temp, 'f', 2, 32) + `","source":"` + sensor + `"}]}`)
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", posturl, bytes.NewBuffer(jsonStr))
+	req.SetBasicAuth(config.LibratoUsername, config.LibratoAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Print(resp)
+		log.Print(err)
 	}
 }
 
