@@ -89,12 +89,8 @@ func ProcessLine(data []byte) {
 		}
 		// fmt.Println(line)
 
-		var temp float64
-		var humidity float64
-		var serialnum string
-
 		if rawSerial, ok := dat["@"]; ok {
-			serialnum = rawSerial.(string)
+			serialnum := rawSerial.(string)
 			log.Print("Got Serial " + serialnum)
 		}
 
@@ -111,14 +107,20 @@ func ProcessLine(data []byte) {
 		}
 
 		if rawTemp, ok := dat["T|C16"]; ok {
-			temp = rawTemp.(float64) / 16
+			temp := rawTemp.(float64) / 16
 			log.Print("Got Temperature " + strconv.FormatFloat(float64(temp), 'f', 2, 32))
 			SendTempDataToThingSpeak(temp)
 			SendDataToLibrato("temperature", serialnum, temp)
 		}
 
+		if rawValve, ok := dat["v|%"]; ok {
+			valve := rawValve.(float64)
+			log.Print("Got Valve " + strconv.FormatFloat(float64(valve), 'f', 2, 32))
+			SendDataToLibrato("valve", serialnum, valve)
+		}
+
 		if rawHumid, ok := dat["H|%"]; ok {
-			humidity = rawHumid.(float64)
+			humidity := rawHumid.(float64)
 			log.Print("Got Humidity " + strconv.FormatFloat(float64(humidity), 'f', 2, 32))
 			SendHumidityDataToThingSpeak(humidity)
 			SendDataToLibrato("humidity", serialnum, temp)
