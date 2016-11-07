@@ -1,0 +1,8 @@
+[serial]
+port = "COM3"
+baud = 4800
+
+[thingspeak]
+api_key = ""
+temperature_field = "field2"
+humidity_field = "field3"
