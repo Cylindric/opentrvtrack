@@ -4,16 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pelletier/go-toml"
+	"github.com/spf13/viper"
 	"github.com/tarm/serial"
 )
 
@@ -31,24 +29,22 @@ var config Config
 
 // ReadConfig loads the user-configurable options into config.
 func ReadConfig() Config {
-	var configfile string
 
-	flag.StringVar(&configfile, "config", "opentrvtrack.config", "Config file")
-	_, err := os.Stat(configfile)
+	viper.AddConfigPath("/etc/opentrvtrack/")
+	viper.AddConfigPath("$HOME/.opentrvtrack")
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+
+	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal("Config file is missing: ", configfile)
+		log.Fatalf("Fatal error config file: %s\n", err)
 	}
 
-	tomlConfig, err := toml.LoadFile(configfile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	config.SerialPort = tomlConfig.Get("serial.port").(string)
-	config.SerialBaud = tomlConfig.Get("serial.baud").(int)
-	config.ThingspeakAPIKey = tomlConfig.Get("thingspeak.api_key").(string)
-	config.ThingspeakTemperatureField = tomlConfig.Get("thingspeak.temperature_field").(string)
-	config.ThingspeakHumidityField = tomlConfig.Get("thingspeak.humidity_field").(string)
+	config.SerialPort = viper.GetString("serial.port")
+	config.SerialBaud = viper.GetInt("serial.baud")
+	config.ThingspeakAPIKey = viper.GetString("thingspeak.api_key")
+	config.ThingspeakTemperatureField = viper.GetString("thingspeak.temperature_field")
+	config.ThingspeakHumidityField = viper.GetString("thingspeak.humidity_field")
 	return config
 }
 
@@ -59,7 +55,6 @@ func main() {
 
 	var config = ReadConfig()
 	log.Printf("Connecting to %s at %d\n", config.SerialPort, config.SerialBaud)
-	log.Fatal("Done")
 
 	c := &serial.Config{Name: config.SerialPort, Baud: config.SerialBaud}
 	s, err := serial.OpenPort(c)
@@ -153,7 +148,7 @@ func SendTempDataToThingSpeak(temp float64) {
 		log.Print(err)
 	}
 
-	log.Print(response)
+	// log.Print(response)
 }
 
 // SendHumidityDataToThingSpeak sends the supplied humidity reading to ThingSpeak
@@ -169,5 +164,5 @@ func SendHumidityDataToThingSpeak(humidity int) {
 		log.Print(err)
 	}
 
-	log.Print(response)
+	// log.Print(response)
 }
