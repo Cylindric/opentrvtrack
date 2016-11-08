@@ -89,8 +89,10 @@ func ProcessLine(data []byte) {
 		}
 		// fmt.Println(line)
 
+		var serialnum string
+
 		if rawSerial, ok := dat["@"]; ok {
-			serialnum := rawSerial.(string)
+			serialnum = rawSerial.(string)
 			log.Print("Got Serial " + serialnum)
 		}
 
@@ -123,7 +125,19 @@ func ProcessLine(data []byte) {
 			humidity := rawHumid.(float64)
 			log.Print("Got Humidity " + strconv.FormatFloat(float64(humidity), 'f', 2, 32))
 			SendHumidityDataToThingSpeak(humidity)
-			SendDataToLibrato("humidity", serialnum, temp)
+			SendDataToLibrato("humidity", serialnum, humidity)
+		}
+
+		if rawOccup, ok := dat["O"]; ok {
+			occupancy := rawOccup.(float64)
+			log.Print("Got Occupancy " + strconv.FormatFloat(float64(occupancy), 'f', 0, 32))
+			SendDataToLibrato("occupancy", serialnum, occupancy)
+		}
+
+		if rawBatt, ok := dat["B|cV"]; ok {
+			battery := rawBatt.(float64) / 100
+			log.Print("Got Battery Voltage " + strconv.FormatFloat(float64(battery), 'f', 2, 32))
+			SendDataToLibrato("battery", serialnum, battery)
 		}
 
 	}

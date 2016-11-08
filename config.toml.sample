@@ -6,7 +6,6 @@ baud = 4800
 api_key = ""
 temperature_field = "field2"
 humidity_field = "field3"
-humidity_field = "field3"
 
 [librato]
 username = ""
