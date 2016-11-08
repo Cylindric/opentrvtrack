@@ -10,3 +10,7 @@ humidity_field = "field3"
 [librato]
 username = ""
 api_key = ""
+
+[elasticsearch]
+server = ""
+index = "opentrv"
