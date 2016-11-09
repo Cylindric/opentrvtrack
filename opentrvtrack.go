@@ -50,27 +50,13 @@ func main() {
 		log.Printf("Request body: %s", body)
 	}
 
-	//var testSample Sample
-	//testSample.Timestamp = time.Now()
-	//SendDataToES(testSample)
-
-	// response, err := core.Index("test", "testing", "1", nil, Sample{"a0000001", 12.34})
-	//log.Fatal("Done")
-
-	// SendDataToSparkFun("test", 23, 11.23)
-	// SendDataToThingSpeak("test", 23, 11.23)
-	// SendDataToLibrato("temperature", "test", 23)
-	// log.Fatal("done")
-
-	// ProcessLine([]byte(`{"@":"C1F8BED8A9AAB8C5","+":3,"L":105,"T|C16":290,"H|%":51}`)) // has temp and humid
-	// log.Fatal("done")
-
 	c := &serial.Config{Name: config.SerialPort, Baud: config.SerialBaud}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Give the board time to reset after Serial wakes it up.
 	time.Sleep(1 * time.Second)
 
 	reader := bufio.NewReader(s)
@@ -116,35 +102,8 @@ func ReadConfig() Config {
 
 // ProcessLine takes a byte array and attempts to extract sensor data from it.
 func ProcessLine(input []byte) {
-	// line := strings.TrimSpace(string(data))
-	// log.Println(string(line))
-
-	// if strings.HasPrefix(line, "OpenTRV") {
-	// Welcome Banner
-	// }
-
-	// if strings.HasPrefix(line, "=F") {
-	// Data from a stats hub
-	// =F@22C3;T1 8 W255 0 F255 0 W255 0 F255 0;C5
-	// }
 
 	if strings.HasPrefix(string(input), "{\"@") {
-		// Data from a sensor
-		// {"@":"C1F8BED8A9AAB8C5","+":14,"L":41,"v|%":0,"tT|C":6}
-
-		// Possible fields:
-		// @      Device serial number
-		// T|C16  Current temperature, in 1/16th of a Celcius
-		// H|%    Current humidty, as %
-		// +      Frame Sequence Number
-		// v|%    Valve-open percentage
-		// tT|C   Target room temperature (C)
-		// cV
-		// 0
-		// vac
-		// tS|C
-		// gE
-		// L      Light Level (0-255)
 
 		sample, err := opentrvgo.ParseSensorReport(input)
 		if err != nil {
@@ -153,72 +112,21 @@ func ProcessLine(input []byte) {
 			return
 		}
 
-		if rawTemp, ok := dat["tT|C"]; ok {
-			sample.TargetTemperature = rawTemp.(float64)
-			targettemp := rawTemp.(float64)
-			log.Print("Got Target Temperature " + strconv.FormatFloat(float64(targettemp), 'f', 2, 32))
-			SendDataToLibrato("targetTemp", serialnum, targettemp)
-		}
-
-		if rawLight, ok := dat["L"]; ok {
-			sample.Light = rawLight.(float64)
-			light := rawLight.(float64)
-			log.Print("Got Light Level " + strconv.FormatFloat(float64(light), 'f', 2, 32))
-			SendDataToLibrato("light", serialnum, light)
-		}
-
-		if rawTemp, ok := dat["T|C16"]; ok {
-			sample.Temperature = rawTemp.(float64) / 16
-			temp := rawTemp.(float64) / 16
-			log.Print("Got Temperature " + strconv.FormatFloat(float64(temp), 'f', 2, 32))
-			SendTempDataToThingSpeak(temp)
-			SendDataToLibrato("temperature", serialnum, temp)
-		}
-
-		if rawValve, ok := dat["v|%"]; ok {
-			sample.Valve = rawValve.(float64)
-			valve := rawValve.(float64)
-			log.Print("Got Valve " + strconv.FormatFloat(float64(valve), 'f', 2, 32))
-			SendDataToLibrato("valve", serialnum, valve)
-		}
-
-		if rawHumid, ok := dat["H|%"]; ok {
-			sample.Humidity = rawHumid.(float64)
-			humidity := rawHumid.(float64)
-			log.Print("Got Humidity " + strconv.FormatFloat(float64(humidity), 'f', 2, 32))
-			SendHumidityDataToThingSpeak(humidity)
-			SendDataToLibrato("humidity", serialnum, humidity)
-		}
-
-		if rawOccup, ok := dat["O"]; ok {
-			sample.Occupancy = rawOccup.(float64)
-			occupancy := rawOccup.(float64)
-			log.Print("Got Occupancy " + strconv.FormatFloat(float64(occupancy), 'f', 0, 32))
-			SendDataToLibrato("occupancy", serialnum, occupancy)
-		}
-
-		if rawBatt, ok := dat["B|cV"]; ok {
-			sample.Battery = rawBatt.(float64)
-			battery := rawBatt.(float64) / 100
-			log.Print("Got Battery Voltage " + strconv.FormatFloat(float64(battery), 'f', 2, 32))
-			SendDataToLibrato("battery", serialnum, battery)
-		}
-
-		SendDataToES(sample)
-
+		err = SendDataToES(sample)
 	}
 }
 
 // SendDataToES sends the supplied data packet to ElasticSearch
-func SendDataToES(sample opentrvgo.Sample) {
+func SendDataToES(sample map[string]interface{}) (err error) {
 	id := uuid.NewV4()
 	response, err := es.Index(fmt.Sprintf("%s-%s", config.ElasticIndex, time.Now().Format("2006-01-02")), "sample", id.String(), nil, sample)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Print(response)
+		log.Print(err)
 	}
-	log.Print(response)
 
+	return err
 }
 
 // SendDataToLibrato sends the supplied temperature reading to SendTempDataToLibrato
@@ -251,8 +159,6 @@ func SendTempDataToThingSpeak(temp float64) {
 		log.Print(response)
 		log.Print(err)
 	}
-
-	// log.Print(response)
 }
 
 // SendHumidityDataToThingSpeak sends the supplied humidity reading to ThingSpeak
@@ -268,6 +174,4 @@ func SendHumidityDataToThingSpeak(humidity float64) {
 		log.Print(response)
 		log.Print(err)
 	}
-
-	// log.Print(response)
 }
