@@ -1,3 +1,7 @@
+[nodes]
+"8CD3878ACDCE86BB" = "Lounge"
+"C1F8BED8A9AAB8C5" = "Bedroom 1"
+
 [serial]
 port = "COM3"
 baud = 4800

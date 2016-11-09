@@ -28,6 +28,7 @@ type Config struct {
 	LibratoAPIKey              string
 	LibratoUsername            string
 	ElasticIndex               string
+	NodeMap                    map[string]string
 }
 
 // config holds the current user-configurable options.
@@ -45,10 +46,10 @@ func main() {
 	flag.Parse()
 
 	// Trace all requests
-	es.RequestTracer = func(method, url, body string) {
-		log.Printf("Requesting %s %s", method, url)
-		log.Printf("Request body: %s", body)
-	}
+	// es.RequestTracer = func(method, url, body string) {
+	// 	log.Printf("Requesting %s %s", method, url)
+	// 	log.Printf("Request body: %s", body)
+	// }
 
 	c := &serial.Config{Name: config.SerialPort, Baud: config.SerialBaud}
 	s, err := serial.OpenPort(c)
@@ -94,7 +95,7 @@ func ReadConfig() Config {
 	config.LibratoAPIKey = viper.GetString("librato.api_key")
 	config.LibratoUsername = viper.GetString("librato.username")
 	config.ElasticIndex = viper.GetString("elasticsearch.index")
-
+	config.NodeMap = viper.GetStringMapString("table-nodes")
 	es.Domain = viper.GetString("elasticsearch.server")
 
 	return config
@@ -102,6 +103,8 @@ func ReadConfig() Config {
 
 // ProcessLine takes a byte array and attempts to extract sensor data from it.
 func ProcessLine(input []byte) {
+
+	log.Println(string(input))
 
 	if strings.HasPrefix(string(input), "{\"@") {
 
@@ -118,6 +121,14 @@ func ProcessLine(input []byte) {
 
 // SendDataToES sends the supplied data packet to ElasticSearch
 func SendDataToES(sample map[string]interface{}) (err error) {
+
+	// Add an alias for convenience
+	serial := strings.ToLower(sample["device"].(string))
+
+	if _, ok := config.NodeMap[serial]; ok {
+		sample["name"] = config.NodeMap[serial]
+	}
+
 	id := uuid.NewV4()
 	response, err := es.Index(fmt.Sprintf("%s-%s", config.ElasticIndex, time.Now().Format("2006-01-02")), "sample", id.String(), nil, sample)
 
