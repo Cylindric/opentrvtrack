@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -12,24 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cylindric/opentrvgo"
 	elastigo "github.com/mattbaird/elastigo/lib"
 	"github.com/spf13/viper"
 	"github.com/tarm/serial"
 	"github.com/twinj/uuid"
 )
-
-// Sample represents a single record of data from a sensor
-type Sample struct {
-	Timestamp         time.Time `json:"timestamp"`
-	Device            string    `json:"device"`
-	Temperature       float64   `json:"temperature"`
-	Humidity          float64   `json:"humidity"`
-	Light             float64   `json:"light"`
-	TargetTemperature float64   `json:"targettemperature"`
-	Valve             float64   `json:"valve"`
-	Occupancy         float64   `json:"occupancy"`
-	Battery           float64   `json:"battery"`
-}
 
 // Config represents all the user-configurable options.
 type Config struct {
@@ -63,12 +50,12 @@ func main() {
 		log.Printf("Request body: %s", body)
 	}
 
-	var testSample Sample
-	testSample.Timestamp = time.Now()
-	SendDataToES(testSample)
+	//var testSample Sample
+	//testSample.Timestamp = time.Now()
+	//SendDataToES(testSample)
 
 	// response, err := core.Index("test", "testing", "1", nil, Sample{"a0000001", 12.34})
-	log.Fatal("Done")
+	//log.Fatal("Done")
 
 	// SendDataToSparkFun("test", 23, 11.23)
 	// SendDataToThingSpeak("test", 23, 11.23)
@@ -128,20 +115,20 @@ func ReadConfig() Config {
 }
 
 // ProcessLine takes a byte array and attempts to extract sensor data from it.
-func ProcessLine(data []byte) {
-	line := strings.TrimSpace(string(data))
-	log.Println(line)
+func ProcessLine(input []byte) {
+	// line := strings.TrimSpace(string(data))
+	// log.Println(string(line))
 
-	if strings.HasPrefix(line, "OpenTRV") {
-		// Welcome Banner
-	}
+	// if strings.HasPrefix(line, "OpenTRV") {
+	// Welcome Banner
+	// }
 
-	if strings.HasPrefix(line, "=F") {
-		// Data from a stats hub
-		// =F@22C3;T1 8 W255 0 F255 0 W255 0 F255 0;C5
-	}
+	// if strings.HasPrefix(line, "=F") {
+	// Data from a stats hub
+	// =F@22C3;T1 8 W255 0 F255 0 W255 0 F255 0;C5
+	// }
 
-	if strings.HasPrefix(line, "{\"@") {
+	if strings.HasPrefix(string(input), "{\"@") {
 		// Data from a sensor
 		// {"@":"C1F8BED8A9AAB8C5","+":14,"L":41,"v|%":0,"tT|C":6}
 
@@ -158,20 +145,12 @@ func ProcessLine(data []byte) {
 		// tS|C
 		// gE
 		// L      Light Level (0-255)
-		var dat map[string]interface{}
 
-		if err := json.Unmarshal(data, &dat); err != nil {
-			log.Print(err)
-		}
-		// fmt.Println(line)
-
-		var serialnum string
-		var sample Sample
-
-		if rawSerial, ok := dat["@"]; ok {
-			sample.Device = rawSerial.(string)
-			serialnum = rawSerial.(string)
-			log.Print("Got Serial " + serialnum)
+		sample, err := opentrvgo.ParseSensorReport(input)
+		if err != nil {
+			log.Print(string(input))
+			log.Printf("Error parsing response: %s", err)
+			return
 		}
 
 		if rawTemp, ok := dat["tT|C"]; ok {
@@ -231,7 +210,7 @@ func ProcessLine(data []byte) {
 }
 
 // SendDataToES sends the supplied data packet to ElasticSearch
-func SendDataToES(sample Sample) {
+func SendDataToES(sample opentrvgo.Sample) {
 	id := uuid.NewV4()
 	response, err := es.Index(fmt.Sprintf("%s-%s", config.ElasticIndex, time.Now().Format("2006-01-02")), "sample", id.String(), nil, sample)
 
