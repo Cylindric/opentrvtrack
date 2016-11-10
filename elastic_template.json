@@ -15,8 +15,7 @@
           "type": "double"
         },
         "device": {
-          "index": "not_analyzed",
-          "type": "string"
+          "type": "keyword"
         },
         "humidity": {
           "type": "integer"
@@ -25,12 +24,10 @@
           "type": "integer"
         },
         "message": {
-          "index": "not_analyzed",
-          "type": "string"
+          "type": "text"
         },
         "name": {
-          "index": "not_analyzed",
-          "type": "string"
+          "type": "keyword"
         },
         "occupancy": {
           "type": "integer"
