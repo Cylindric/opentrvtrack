@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenTRV Stats Tracker
+
+[Service]
+ExecStart=/usr/bin/opentrvtrack
+Restart=on-abort
+User=opentrvtrack
+Group=opentrvtrack
+
+[Install]
+WantedBy=multi-user.target
